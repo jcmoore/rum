@@ -5,7 +5,7 @@ EXTENSION = rum
 EXTVERSION = 1.3
 PGFILEDESC = "RUM index access method"
 
-OBJS = src/rumsort.o src/rum_ts_utils.o src/rumtsquery.o \
+OBJS = src/rumtidbitmap.o src/rumsort.o src/rum_ts_utils.o src/rumtsquery.o \
 	src/rumbtree.o src/rumbulk.o src/rumdatapage.o \
 	src/rumentrypage.o src/rumget.o src/ruminsert.o \
 	src/rumscan.o src/rumutil.o src/rumvacuum.o src/rumvalidate.o \
@@ -20,7 +20,7 @@ DATA = $(DATA_first) rum--$(EXTVERSION).sql $(DATA_updates)
 # Do not use DATA_built. It removes built files if clean target was used
 SQL_built = rum--$(EXTVERSION).sql $(DATA_updates)
 
-INCLUDES = rum.h rumsort.h
+INCLUDES = rum.h rumsort.h rumtidbitmap.h
 RELATIVE_INCLUDES = $(addprefix src/, $(INCLUDES))
 
 LDFLAGS_SL += $(filter -lm, $(LIBS))
