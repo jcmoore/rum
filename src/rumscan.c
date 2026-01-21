@@ -189,8 +189,17 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 
 			if (nQueryValues != 1)
 				elog(ERROR, "extractQuery should return only one value for ordering");
-			if (attr->attbyval == false)
-				elog(ERROR, "doesn't support order by over pass-by-reference column");
+			/*
+			 * Original check: if (attr->attbyval == false)
+			 *     elog(ERROR, "doesn't support order by over pass-by-reference column");
+			 *
+			 * Modified for 32-bit platforms (like Emscripten/WASM) where 8-byte types
+			 * such as TIMESTAMPTZ are pass-by-reference. We allow fixed-length types
+			 * (attlen > 0) even when pass-by-reference, as they have known sizes and
+			 * can be safely handled. Only variable-length types (attlen < 0) are blocked.
+			 */
+			if (attr->attbyval == false && attr->attlen < 0)
+				elog(ERROR, "doesn't support order by over variable-length column");
 
 			if (key->attnum == rumstate->attrnAttachColumn)
 			{
