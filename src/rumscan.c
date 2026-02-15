@@ -189,7 +189,8 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 
 			if (nQueryValues != 1)
 				elog(ERROR, "extractQuery should return only one value for ordering");
-			if (attr->attbyval == false)
+			if (attr->attbyval == false &&
+				(attr->attlen < 0 || attr->attlen > RUM_MAX_FIXLEN_ADDINFO_SIZE))
 				elog(ERROR, "doesn't support order by over pass-by-reference column");
 
 			if (key->attnum == rumstate->attrnAttachColumn)
