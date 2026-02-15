@@ -254,7 +254,10 @@ initRumState(RumState * state, Relation index)
 			if (OidIsValid(rumConfig->addInfoTypeOid))
 				elog(ERROR, "AddTo could should not have AddInfo");
 
-			if (state->useAlternativeOrder && origAddAttr->attbyval == false)
+			if (state->useAlternativeOrder &&
+				origAddAttr->attbyval == false &&
+				(origAddAttr->attlen < 0 ||
+				 origAddAttr->attlen > RUM_MAX_FIXLEN_ADDINFO_SIZE))
 				elog(ERROR, "doesn't support order index over pass-by-reference column");
 
 			rumConfig->addInfoTypeOid = origAddAttr->atttypid;

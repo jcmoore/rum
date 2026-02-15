@@ -166,17 +166,22 @@ typedef struct RumMetaPageData
 	(RumItemPointerGetOffsetNumber(p) == (OffsetNumber)0xffff && \
 	 RumItemPointerGetBlockNumber(p) != InvalidBlockNumber)
 
+#define RUM_MAX_FIXLEN_ADDINFO_SIZE 16
+
 typedef struct RumItem
 {
 	ItemPointerData iptr;
 	bool		addInfoIsNull;
+	bool		addInfoIsRaw;
 	Datum		addInfo;
+	char		addInfoRaw[RUM_MAX_FIXLEN_ADDINFO_SIZE];
 }	RumItem;
 
 #define RumItemSetMin(item)  \
 do { \
 	ItemPointerSetMin(&((item)->iptr)); \
 	(item)->addInfoIsNull = true; \
+	(item)->addInfoIsRaw = false; \
 	(item)->addInfo = (Datum) 0; \
 } while (0)
 
@@ -304,6 +309,7 @@ typedef struct
 	OffsetNumber offsetNumer;
 	uint16		pageOffset;
 	Datum		addInfo; /* optional */
+	char		addInfoRaw[RUM_MAX_FIXLEN_ADDINFO_SIZE];
 }	RumDataLeafItemIndex;
 
 #define RumDataLeafIndexCount 32
@@ -978,6 +984,7 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, RumItem * item,
 
 	Assert(item->iptr.ip_posid != InvalidOffsetNumber);
 
+	item->addInfoIsRaw = false;
 	if (!item->addInfoIsNull)
 	{
 		attr = rumstate->addAttrs[attnum - 1];
@@ -1023,8 +1030,17 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, RumItem * item,
 			ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen,
 											  ptr);
 			addInfo = fetch_att(ptr, attr->attbyval, attr->attlen);
-			item->addInfo = copyAddInfo ?
-				datumCopy(addInfo, attr->attbyval, attr->attlen) : addInfo;
+			if (attr->attlen > 0 && attr->attlen <= RUM_MAX_FIXLEN_ADDINFO_SIZE)
+			{
+				memcpy(item->addInfoRaw, DatumGetPointer(addInfo), attr->attlen);
+				item->addInfo = PointerGetDatum(item->addInfoRaw);
+				item->addInfoIsRaw = true;
+			}
+			else
+			{
+				item->addInfo = copyAddInfo ?
+					datumCopy(addInfo, attr->attbyval, attr->attlen) : addInfo;
+			}
 		}
 
 		ptr = (Pointer) att_addlength_pointer(ptr, attr->attlen, ptr);
@@ -1064,6 +1080,7 @@ rumDataPageLeafReadPointer(Pointer ptr, OffsetNumber attnum, RumItem * item,
 
 	Assert(item->iptr.ip_posid != InvalidOffsetNumber);
 
+	item->addInfoIsRaw = false;
 	if (!item->addInfoIsNull)
 	{
 		attr = rumstate->addAttrs[attnum - 1];

@@ -18,6 +18,28 @@
 static BlockNumber dataGetLeftMostPage(RumBtree btree, Page page);
 static BlockNumber dataGetRightMostPage(RumBtree btree, Page page);
 
+static void
+rumNormalizeItemAddInfo(RumState *rumstate, OffsetNumber attnum, RumItem *item)
+{
+	Form_pg_attribute attr;
+
+	if (item->addInfoIsNull)
+		return;
+	if (!rumstate->useAlternativeOrder || attnum != rumstate->attrnAddToColumn)
+		return;
+	if (item->addInfoIsRaw)
+		return;
+
+	attr = rumstate->addAttrs[attnum - 1];
+	if (!(attr && !attr->attbyval && attr->attlen > 0 &&
+		  attr->attlen <= RUM_MAX_FIXLEN_ADDINFO_SIZE))
+		return;
+
+	memcpy(item->addInfoRaw, DatumGetPointer(item->addInfo), attr->attlen);
+	item->addInfo = PointerGetDatum(item->addInfoRaw);
+	item->addInfoIsRaw = true;
+}
+
 /* Does datatype allow packing into the 1-byte-header varlena format? */
 #define TYPE_IS_PACKABLE(typlen, typstorage) \
 	((typlen) == -1 && (typstorage) != 'p')
@@ -334,11 +356,22 @@ compareRumItem(RumState * state, const AttrNumber attno,
 		{
 			int			res;
 			AttrNumber	attnum = state->attrnAttachColumn;
+			Form_pg_attribute attr = state->addAttrs[attno - 1];
+			Datum		addInfoA = a->addInfo;
+			Datum		addInfoB = b->addInfo;
+
+			if (attr && !attr->attbyval && attr->attlen > 0)
+			{
+				addInfoA = a->addInfoIsRaw ?
+					PointerGetDatum(a->addInfoRaw) : a->addInfo;
+				addInfoB = b->addInfoIsRaw ?
+					PointerGetDatum(b->addInfoRaw) : b->addInfo;
+			}
 
 			res = DatumGetInt32(FunctionCall2Coll(
 												  &state->compareFn[attnum - 1],
 											 state->supportCollation[attnum - 1],
-												  a->addInfo, b->addInfo));
+												  addInfoA, addInfoB));
 			if (res != 0)
 				return res;
 			/* fallback to ItemPointerCompare */
@@ -512,11 +545,14 @@ convertIndexToKey(RumDataLeafItemIndex *src, RumItem *dst)
 	{
 		dst->iptr.ip_posid &= ~ALT_ADD_INFO_NULL_FLAG;
 		dst->addInfoIsNull = true;
+		dst->addInfoIsRaw = false;
 	}
 	else
 	{
 		dst->addInfoIsNull = false;
 		dst->addInfo = src->addInfo;
+		memcpy(dst->addInfoRaw, src->addInfoRaw, sizeof(dst->addInfoRaw));
+		dst->addInfoIsRaw = true;
 	}
 }
 
@@ -1010,6 +1046,8 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 	}
 	else
 	{
+		rumNormalizeItemAddInfo(btree->rumstate, btree->entryAttnum,
+							 &btree->pitem.item);
 		RumDataPageAddItem(page, &(btree->pitem), off);
 	}
 }
@@ -1210,10 +1248,16 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 	PostingItemSetBlockNumber(&(btree->pitem), BufferGetBlockNumber(lbuf));
 	btree->pitem.item = maxLeftItem;
+	rumNormalizeItemAddInfo(btree->rumstate, btree->entryAttnum,
+						 &btree->pitem.item);
 	btree->rightblkno = BufferGetBlockNumber(rbuf);
 
 	*RumDataPageGetRightBound(rPage) = *RumDataPageGetRightBound(lpageCopy);
 	*RumDataPageGetRightBound(newlPage) = maxLeftItem;
+	rumNormalizeItemAddInfo(btree->rumstate, btree->entryAttnum,
+						 RumDataPageGetRightBound(rPage));
+	rumNormalizeItemAddInfo(btree->rumstate, btree->entryAttnum,
+						 RumDataPageGetRightBound(newlPage));
 
 	/* Fill indexes at the end of pages */
 	updateItemIndexes(newlPage, btree->entryAttnum, btree->rumstate);
@@ -1301,15 +1345,19 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	else
 		btree->pitem.item = ((PostingItem *) RumDataPageGetItem(newlPage,
 								   RumPageGetOpaque(newlPage)->maxoff))->item;
+	rumNormalizeItemAddInfo(btree->rumstate, btree->entryAttnum,
+						 &btree->pitem.item);
 	btree->rightblkno = BufferGetBlockNumber(rbuf);
 
 	/* set up right bound for left page */
 	bound = RumDataPageGetRightBound(newlPage);
 	*bound = btree->pitem.item;
+	rumNormalizeItemAddInfo(btree->rumstate, btree->entryAttnum, bound);
 
 	/* set up right bound for right page */
 	bound = RumDataPageGetRightBound(rPage);
 	*bound = oldbound;
+	rumNormalizeItemAddInfo(btree->rumstate, btree->entryAttnum, bound);
 
 	return newlPage;
 }
@@ -1361,6 +1409,8 @@ updateItemIndexes(Page page, OffsetNumber attnum, RumState * rumstate)
 			if (rumstate->useAlternativeOrder)
 			{
 				e->addInfo = item.addInfo;
+				if (item.addInfoIsRaw)
+					memcpy(e->addInfoRaw, item.addInfoRaw, sizeof(e->addInfoRaw));
 				if (item.addInfoIsNull)
 					e->iptr.ip_posid |= ALT_ADD_INFO_NULL_FLAG;
 			}
@@ -1451,11 +1501,13 @@ rumDataFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
 
 	memset(&li, 0, sizeof(PostingItem));
 	li.item = *RumDataPageGetRightBound(lpage);
+	rumNormalizeItemAddInfo(btree->rumstate, btree->entryAttnum, &li.item);
 	PostingItemSetBlockNumber(&li, BufferGetBlockNumber(lbuf));
 	RumDataPageAddItem(page, &li, InvalidOffsetNumber);
 
 	memset(&ri, 0, sizeof(PostingItem));
 	ri.item = *RumDataPageGetRightBound(rpage);
+	rumNormalizeItemAddInfo(btree->rumstate, btree->entryAttnum, &ri.item);
 	PostingItemSetBlockNumber(&ri, BufferGetBlockNumber(rbuf));
 	RumDataPageAddItem(page, &ri, InvalidOffsetNumber);
 }
