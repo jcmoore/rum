@@ -169,10 +169,16 @@ else
 }
 
 $node->init(allows_streaming => 1);
-$node->append_conf("postgresql.conf", "shared_buffers='4GB'\n" .
-				   "maintenance_work_mem='2GB'\n" .
-				   "max_wal_size='2GB'\n" .
-				   "work_mem='50MB'");
+
+my $shared_buffers = $ENV{RUM_PGLIST_SHARED_BUFFERS} // '4GB';
+my $maintenance_work_mem = $ENV{RUM_PGLIST_MAINTENANCE_WORK_MEM} // '2GB';
+my $max_wal_size = $ENV{RUM_PGLIST_MAX_WAL_SIZE} // '2GB';
+my $work_mem = $ENV{RUM_PGLIST_WORK_MEM} // '50MB';
+
+$node->append_conf("postgresql.conf", "shared_buffers='${shared_buffers}'\n" .
+				   "maintenance_work_mem='${maintenance_work_mem}'\n" .
+				   "max_wal_size='${max_wal_size}'\n" .
+				   "work_mem='${work_mem}'");
 $node->start;
 
 # Check the existence of the pglist base

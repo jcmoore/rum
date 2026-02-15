@@ -75,6 +75,19 @@ This command runs:
 - isolation tests;
 - tap tests.
 
+### PGXS test helper scripts (Docker)
+
+For environments where running `make check` directly is inconvenient, you can run the full `USE_PGXS=1 installcheck` suite inside Docker:
+
+    $ ./scripts/test-rum-pgxs.sh
+
+To reduce stdout noise, use quiet mode (`-q`), or call the quiet wrapper script:
+
+    $ ./scripts/test-rum-pgxs.sh -q
+    $ ./scripts/test-rum-pgxs.quiet.sh
+
+The helper scripts pass through `PG_TEST_EXTRA`. If `PG_TEST_EXTRA` contains `big_values`, they run Docker with `--shm-size=6g` by default (override via `RUM_PGXS_BIG_VALUES_SHM_SIZE`, for example `4g` or `8g`). By default they also copy the RUM workspace into VM-local storage before running tests to keep very large TAP artifacts off the host bind mount (set `RUM_PGXS_BIG_VALUES_WORKDIR_IN_VM=0` to disable). They require free disk space for the large dataset and fail early if the working directory has less than 12GB free by default (override via `RUM_PGXS_BIG_VALUES_MIN_FREE_GB`).
+
     One of the tap tests downloads a 1GB archive and then unpacks it
     into a file weighing almost 3GB. It is disabled by default.
 
