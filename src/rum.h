@@ -1030,7 +1030,8 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, RumItem * item,
 			ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen,
 											  ptr);
 			addInfo = fetch_att(ptr, attr->attbyval, attr->attlen);
-			if (attr->attlen > 0 && attr->attlen <= RUM_MAX_FIXLEN_ADDINFO_SIZE)
+			if (!attr->attbyval && attr->attlen > 0 &&
+				attr->attlen <= RUM_MAX_FIXLEN_ADDINFO_SIZE)
 			{
 				memcpy(item->addInfoRaw, DatumGetPointer(addInfo), attr->attlen);
 				item->addInfo = PointerGetDatum(item->addInfoRaw);
