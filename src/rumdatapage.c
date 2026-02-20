@@ -356,7 +356,7 @@ compareRumItem(RumState * state, const AttrNumber attno,
 		{
 			int			res;
 			AttrNumber	attnum = state->attrnAttachColumn;
-			Form_pg_attribute attr = state->addAttrs[attno - 1];
+			Form_pg_attribute attr = state->addAttrs[attnum - 1];
 			Datum		addInfoA = a->addInfo;
 			Datum		addInfoB = b->addInfo;
 
