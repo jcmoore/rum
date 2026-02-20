@@ -1541,7 +1541,13 @@ collectAllCurItemsToBitmap(RumScanKey key, RumTIDBitmap *tbm,
 
 		/* If curItem is suitable, put it in the RumTIDBitmap */
 		if (key->curItemMatches)
-			rum_tbm_add_tuples(tbm, &key->curItem.iptr, 1, false);
+		{
+			if (ItemPointerIsLossyPage(&key->curItem.iptr))
+				rum_tbm_add_page(tbm,
+							 ItemPointerGetBlockNumber(&key->curItem.iptr));
+			else
+				rum_tbm_add_tuples(tbm, &key->curItem.iptr, 1, false);
+		}
 
 		advancePast = key->curItem.iptr;
 	}

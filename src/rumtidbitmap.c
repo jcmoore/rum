@@ -138,6 +138,9 @@ rum_tbm_contains_tid(RumTIDBitmap *tbm, ItemPointer tid, bool *recheck)
 		return true;
 	}
 
+	if (!OffsetNumberIsValid(off))
+		return false;
+
 	else if ((page = tbm_find_pageentry(tbm, blkn)) != NULL)
 	{
 		int wn = WORDNUM(off - 1);
