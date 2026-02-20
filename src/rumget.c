@@ -771,23 +771,31 @@ static bool
 isScanWithAltOrderKeys(RumScanOpaque so)
 {
 	RumState *rumstate = &so->rumstate;
+	bool withAltWhereKeys = false;
+	bool withUsualWhereKeys = false;
+	int whereKeys = 0;
+	int i;
 
-	bool withAltKeys = false;
-	bool withUsualKeys = false;
-
-	if (so->nkeys == 1)
-		return false;
-
-	for (int i = 0; i < so->nkeys; i++)
+	for (i = 0; i < so->nkeys; i++)
 	{
+		RumScanKey key = so->keys[i];
+
+		/* only WHERE keys participate in intersection logic */
+		if (key->orderBy)
+			continue;
+
+		whereKeys++;
 		if (rumstate->useAlternativeOrder &&
-			rumstate->attrnAddToColumn == so->keys[i]->attnumOrig)
-			withAltKeys = true;
+			rumstate->attrnAddToColumn == key->attnumOrig)
+			withAltWhereKeys = true;
 		else
-			withUsualKeys = true;
+			withUsualWhereKeys = true;
 	}
 
-	return (withUsualKeys && withAltKeys);
+	if (whereKeys < 2)
+		return false;
+
+	return withUsualWhereKeys && withAltWhereKeys;
 }
 
 static void
