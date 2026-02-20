@@ -1,7 +1,9 @@
 .deps
 *.o
 *.so
+*.bc
 results
+.logs
 __pycache__
 *.pyc
 tmp_install
