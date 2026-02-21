@@ -22,8 +22,8 @@ SELECT *
 FROM test_table
 WHERE tags && '{1}'::int4[]
 	AND folder = 10::bigint;
-                                     QUERY PLAN                                     
-------------------------------------------------------------------------------------
+                               QUERY PLAN                               
+------------------------------------------------------------------------
  Index Scan using test_idx on test_table
    Index Cond: ((folder = '10'::bigint) AND (tags && '{1}'::integer[]))
 (2 rows)
@@ -46,8 +46,8 @@ FROM test_table
 WHERE tags && '{1}'::int4[]
 	AND folder = 10::bigint
 ORDER BY time <=| 500::bigint;
-                                     QUERY PLAN                                     
-------------------------------------------------------------------------------------
+                               QUERY PLAN                               
+------------------------------------------------------------------------
  Index Scan using test_idx on test_table
    Index Cond: ((folder = '10'::bigint) AND (tags && '{1}'::integer[]))
    Order By: ("time" <=| '500'::bigint)
@@ -65,3 +65,4 @@ ORDER BY time <=| 500::bigint;
   6 |     10 |   40 | {1,60}
   8 |     10 |   30 | {1,80}
 (4 rows)
+
